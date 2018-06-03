@@ -6,9 +6,4 @@ public class DBObject
     {
         
     }
-    
-    public func toDictionay() -> [String:Any]
-    {
-        return ["key":"value"]
-    }
 }

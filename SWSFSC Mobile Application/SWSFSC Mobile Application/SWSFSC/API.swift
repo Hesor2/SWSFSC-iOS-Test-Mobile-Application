@@ -6,6 +6,12 @@ public class API
 {
     private static var baseUrl = ""
     private static var serviceCode = ""
+    
+    public enum APIError:Error
+    {
+        case AccessDenied
+    }
+    
     private static func makeRequest(url : String, method: String, body: Data?, completion: @escaping (_ data: Data?, _ response: URLResponse?, _ error: Error?) -> Void)
     {
         //getIDTokenForcingRefresh:(BOOL)forceRefresh
@@ -17,7 +23,7 @@ public class API
                 completion(nil, nil, error)
                 return
             }
-            print(String(describing: idToken))
+            //print(String(describing: idToken))
             // Send token to your backend via HTTPS
             // ...
             guard let requestUrl = URL(string:baseUrl+url) else { return }
@@ -32,9 +38,7 @@ public class API
             }
             
             let config = URLSessionConfiguration.default // Session Configuration
-            //config.httpAdditionalHeaders?["Authorization"] = idToken
             let session = URLSession(configuration: config) // Load configuration into Session
-            
             let task = session.dataTask(with: request, completionHandler: {
                 (data, response, error) in
                 
@@ -45,7 +49,7 @@ public class API
                             print("statusCode: \(httpResponse.statusCode)")
                             if httpResponse.statusCode != 200
                             {
-                                completion(nil, response, error)
+                                completion(nil, response, APIError.AccessDenied)
                             }
                             completion(data, response, error)
                         }
@@ -54,6 +58,40 @@ public class API
             })
             task.resume()
         }
+    }
+    
+    private static func makeUnauthorizedRequest(url : String, method: String, body: Data?, completion: @escaping (_ data: Data?, _ response: URLResponse?, _ error: Error?) -> Void)
+    {
+        guard let requestUrl = URL(string:baseUrl+url) else { return }
+        var request = URLRequest(url:requestUrl)
+        request.httpMethod = method
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(serviceCode, forHTTPHeaderField: "ServiceCode")
+        if body != nil
+        {
+            request.httpBody = body
+        }
+        
+        let config = URLSessionConfiguration.default // Session Configuration
+        let session = URLSession(configuration: config) // Load configuration into Session
+        let task = session.dataTask(with: request, completionHandler: {
+            (data, response, error) in
+            
+            DispatchQueue.main.async
+                {
+                    if let httpResponse = response as? HTTPURLResponse
+                    {
+                        print("statusCode: \(httpResponse.statusCode)")
+                        if httpResponse.statusCode != 200
+                        {
+                            completion(nil, response, APIError.AccessDenied)
+                        }
+                        completion(data, response, error)
+                    }
+                    
+            }
+        })
+        task.resume()
     }
     
     private static func fromJSONCollection<T: DBObject>(collectionID: String, data: Data?) -> [T]
@@ -73,9 +111,7 @@ public class API
                             
                             objectArray.append(object)
                         }
-                    }
-                    //print("array size: \(objectArray.count)")
-                    
+                    }                    
                 }
             }
             catch
@@ -86,7 +122,7 @@ public class API
         return objectArray
     }
     
-    private static func toJSONCollection<T: DBObject>(collectionID: String, collection: [T]) -> Data?
+    /*private static func toJSONCollection<T: DBObject>(collectionID: String, collection: [T]) -> Data?
     {
         var dictionary = [[String:Any]]()
         for item in collection
@@ -101,7 +137,7 @@ public class API
         {
             return nil
         }
-    }
+    }*/
     
     public static func setConnection(newBaseUrl: String, newServiceCode: String)
     {
@@ -109,59 +145,102 @@ public class API
         serviceCode = newServiceCode
     }
     
-    /*
-    public class Allergies
+    public class Authorization
     {
-        private static var baseUrl = "allergies"
+        private static var baseUrl = "authorization"
         
-        public static func getAllergies(completion: @escaping (_ allergies: [Allergy]?, _ error: Error?) -> Void)
+        public static func checkOwner(completion: @escaping (_ isOwner: Bool) -> Void)
         {
-            API.makeRequest(url: baseUrl, method: "GET", body: nil, completion:
+            API.makeRequest(url: baseUrl+"/checkOwner", method: "GET", body: nil, completion:
                 {
                     (data, response, error) in
                     if error != nil
                     {
-                        completion(nil, error)
+                        completion(false)
                     }
                     else
                     {
-                        if let allergies = API.fromJSONCollection(collectionID: "allergies", data: data) as [Allergy]?
-                        {
-                            completion(allergies, nil)
-                        }
+                        completion(true)
                     }
             })
         }
-        
-        public static func getUserAllergies(completion: @escaping (_ allergies: [Allergy]?, _ error: Error?) -> Void)
+
+        public static func createAdmin(admin: Admin, completion: @escaping (_ complete: Bool) -> Void)
         {
-            API.makeRequest(url: baseUrl + "/user", method: "GET", body: nil, completion:
+            let json = admin.toJSON()
+            API.makeRequest(url: baseUrl+"/createAdmin", method: "POST", body: json, completion:
                 {
                     (data, response, error) in
                     if error != nil
                     {
-                        completion(nil, error)
+                        completion(false)
                     }
                     else
                     {
-                        
-                        if let allergies = API.fromJSONCollection(collectionID: "allergies", data: data) as [Allergy]?
-                        {
-                            completion(allergies, nil)
-                        }
+                        completion(true)
+                    }
+            })
+        }
+
+        public static func checkAdmin(completion: @escaping (_ isAdmin: Bool) -> Void)
+        {
+            API.makeRequest(url: baseUrl+"/checkAdmin", method: "GET", body: nil, completion:
+                {
+                    (data, response, error) in
+                    if error != nil
+                    {
+                        completion(false)
+                    }
+                    else
+                    {
+                        completion(true)
                     }
             })
         }
         
+        public static func register(user: User, completion: @escaping (_ complete: Bool) -> Void)
+        {
+            let json = user.toJSON()
+            API.makeRequest(url: baseUrl+"/register", method: "POST", body: json, completion:
+                {
+                    (data, response, error) in
+                    if error != nil
+                    {
+                        completion(false)
+                    }
+                    else
+                    {
+                        completion(true)
+                    }
+            })
+        }
+        
+        public static func checkName(name: String, completion: @escaping (_ available: Bool) -> Void)
+        {
+            let json = User(name: name).toJSON()
+            API.makeUnauthorizedRequest(url: baseUrl+"/checkName", method: "POST", body: json, completion:
+                {
+                    (data, response, error) in
+                    if error != nil
+                    {
+                        completion(false)
+                    }
+                    else
+                    {
+                        completion(true)
+                    }
+                })
+        }
     }
-    */
+    
     public class Seasons
     {
         private static var baseUrl = "seasons"
         
-        public static func getAll(completion: @escaping (_ seasons: [Season]?, _ error: Error?) -> Void)
+        public static func getAll(page: Int, completion: @escaping (_ seasons: [Season]?, _ error: Error?) -> Void)
         {
-            API.makeRequest(url: baseUrl, method: "GET", body: nil, completion:
+            let json = Paging(page: page).toJSON()
+            API.makeRequest(url: baseUrl, method: "POST", body: json, completion:
                 {
                     (data, response, error) in
                     if error != nil
@@ -178,7 +257,87 @@ public class API
             })
         }
         
+        public static func create(season: Season, completion: @escaping (_ complete: Bool) -> Void)
+        {
+            let json = season.toJSON()
+            API.makeRequest(url: baseUrl+"/create", method: "POST", body: json, completion:
+                {
+                    (data, response, error) in
+                    if error != nil
+                    {
+                        completion(false)
+                    }
+                    else
+                    {
+                        completion(true)
+                    }
+            })
+        }
         
+        public static func getCompetitions(season: Season, page: Int, completion: @escaping (_ competitions: [Competition]?, _ error: Error?) -> Void)
+        {
+            let json = season.toJSON(page: page)
+            API.makeRequest(url: baseUrl+"/competitions", method: "POST", body: json, completion:
+                {
+                    (data, response, error) in
+                    if error != nil
+                    {
+                        completion(nil, error)
+                    }
+                    else
+                    {
+                        if let competitions = API.fromJSONCollection(collectionID: "competitions", data: data) as [Competition]?
+                        {
+                            completion(competitions, nil)
+                        }
+                    }
+            })
+        }
+        
+        public static func getHighscore(season: Season, page: Int, completion: @escaping (_ scores: [UserScore]?, _ error: Error?) -> Void)
+        {
+            let json = season.toJSON(page: page)
+            API.makeRequest(url: baseUrl+"/highscore", method: "POST", body: json, completion:
+                {
+                    (data, response, error) in
+                    if error != nil
+                    {
+                        completion(nil,error)
+                    }
+                    else
+                    {
+                        if let userScores = API.fromJSONCollection(collectionID: "userScores", data: data) as [UserScore]?
+                        {
+                            completion(userScores, nil)
+                        }
+                    }
+            })
+        }
+    }
+    
+    public class Competitions
+    {
+        private static var baseUrl = "competitions"
+        
+        /*public static func getAll(season: Season, page: Int, completion: @escaping (_ seasons: [Season]?, _ error: Error?) -> Void)
+        {
+            let json = season.toJSON(page: page)
+            API.makeRequest(url: baseUrl, method: "POST", body: json, completion:
+                {
+                    (data, response, error) in
+                    if error != nil
+                    {
+                        completion(nil, error)
+                    }
+                    else
+                    {
+                        if let seasons = API.fromJSONCollection(collectionID: "seasons", data: data) as [Season]?
+                        {
+                            completion(seasons, nil)
+                        }
+                    }
+            })
+        }*/
     }
     
 }

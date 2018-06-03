@@ -19,7 +19,7 @@ class SeasonsViewController: UIViewController, UITableViewDelegate, UITableViewD
     
     func getSeasons()
     {
-        API.Seasons.getAll(completion: {
+        API.Seasons.getAll(page: 1, completion: {
             (seasons, error) in
             if error == nil
             {
@@ -60,7 +60,7 @@ class SeasonsViewController: UIViewController, UITableViewDelegate, UITableViewD
         let index = indexPath.row
         var season : Season
         season = seasons[index]
-        //performSegue(withIdentifier: "showCompetitions", sender: season)
+        performSegue(withIdentifier: "showSeason", sender: season)
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat
@@ -68,23 +68,43 @@ class SeasonsViewController: UIViewController, UITableViewDelegate, UITableViewD
         return 80.0
     }
     
-    /*
+    
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?)
     {
         // Get the new view controller using segue.destinationViewController.
         // Pass the selected object to the new view controller.
-        if segue.identifier == "ShowAllergy"
+        if segue.identifier == "showSeason"
         {
-            if let destination = segue.destination as? AllergyViewController
+            if let destination = segue.destination as? SeasonViewController
             {
-                if let allergy = sender as? Allergy
+                if let season = sender as? Season
                 {
-                    destination.allergy = allergy
+                    destination.season = season
                 }
             }
         }
-    }*/
+    }
+    
+    @IBAction func createPressed(_ sender: UIButton)
+    {
+        API.Authorization.checkAdmin { (admin) in
+            if admin == true
+            {
+                self.performSegue(withIdentifier: "showSeasonCreation", sender: nil)
+            }
+            else
+            {
+                self.presentErrorAlert(errorText: "Only admins allowed")
+            }
+        }
+    }
+    
+    @IBAction func unwindToSeasonViewController(segue: UIStoryboardSegue)
+    {
+        getSeasons()
+    }
+    
     
     override func didReceiveMemoryWarning()
     {
